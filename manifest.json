@@ -1,0 +1,1 @@
+{"background_color":"#14100e","description":"Record a conversation and get the transcript. English or Spanish.","display":"standalone","icons":[{"sizes":"192x192","src":"icon-192.png","type":"image/png"},{"sizes":"512x512","src":"icon-512.png","type":"image/png"}],"name":"Meeting Notes","scope":"./","short_name":"Meetings","start_url":"./index.html","theme_color":"#14100e"}
