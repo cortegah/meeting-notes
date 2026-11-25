@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Meeting Notes</title>
+<meta name="theme-color" content="#14100e">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Meetings">
+<style>
+  :root{
+    --bg:#14100e; --panel:#1f1a17; --panel2:#292019; --line:#3a2f28;
+    --text:#f5efe9; --muted:#b8a89a; --accent:#e4572e; --accent2:#ff7a4d;
+    --good:#7bc47f; --radius:16px;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+  html,body{margin:0; padding:0}
+  body{
+    background:var(--bg); color:var(--text);
+    font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    padding: env(safe-area-inset-top) 16px calc(24px + env(safe-area-inset-bottom));
+    max-width:640px; margin:0 auto;
+  }
+  header{display:flex; align-items:center; gap:10px; padding:18px 2px 6px}
+  header .dot{width:14px; height:14px; border-radius:50%; background:var(--accent)}
+  h1{font-size:24px; margin:0; letter-spacing:.2px}
+  .sub{color:var(--muted); font-size:13px; margin:2px 2px 14px}
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:16px; margin-bottom:14px}
+  .row{display:flex; gap:8px; align-items:center}
+  .seg{display:flex; background:var(--panel2); border:1px solid var(--line); border-radius:999px; padding:3px}
+  .seg button{
+    border:0; background:transparent; color:var(--muted); font-size:14px; font-weight:600;
+    padding:7px 16px; border-radius:999px; cursor:pointer;
+  }
+  .seg button.on{background:var(--accent); color:#fff}
+  .seg.small button{padding:5px 12px; font-size:13px}
+  .spacer{flex:1}
+  #statusLine{font-size:13px; color:var(--muted); min-height:18px}
+  #statusLine.rec{color:var(--accent2); font-weight:600}
+  #timer{font-variant-numeric:tabular-nums; font-size:15px; color:var(--muted)}
+  #recBtn{
+    width:104px; height:104px; border-radius:50%; border:0; cursor:pointer;
+    background:var(--accent); color:#fff; font-size:19px; font-weight:800; letter-spacing:1px;
+    display:block; margin:14px auto 6px; box-shadow:0 6px 24px rgba(228,87,46,.4);
+  }
+  #recBtn.recording{background:#b3271e; animation:pulse 1.6s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(228,87,46,.45)}70%{box-shadow:0 0 0 18px rgba(228,87,46,0)}100%{box-shadow:0 0 0 0 rgba(228,87,46,0)}}
+  .btnrow{display:flex; gap:8px; justify-content:center; margin-top:8px; flex-wrap:wrap}
+  .btn{
+    border:1px solid var(--line); background:var(--panel2); color:var(--text);
+    padding:10px 16px; border-radius:999px; font-size:14px; font-weight:600; cursor:pointer;
+  }
+  .btn.primary{background:var(--accent); border-color:var(--accent); color:#fff}
+  .btn:disabled{opacity:.4}
+  #transcriptBox{
+    background:#171210; border:1px solid var(--line); border-radius:12px; padding:12px;
+    min-height:110px; font-size:16px; line-height:1.5; white-space:pre-wrap; word-wrap:break-word;
+  }
+  #transcriptBox .interim{color:var(--muted)}
+  #transcriptBox .empty{color:var(--muted); font-size:14px}
+  input[type=text], textarea{
+    width:100%; background:#171210; border:1px solid var(--line); border-radius:10px;
+    color:var(--text); padding:11px 12px; font-size:15px; margin-top:8px; font-family:inherit;
+  }
+  textarea{min-height:130px; resize:vertical}
+  label{font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.6px}
+  .err{color:#ff9c8a; font-size:13px; min-height:16px; margin-top:6px}
+  h2{font-size:17px; margin:4px 2px 10px}
+  .meeting{
+    width:100%; text-align:left; background:var(--panel); border:1px solid var(--line);
+    border-radius:12px; padding:12px 14px; margin-bottom:8px; color:var(--text); cursor:pointer;
+  }
+  .meeting .t{font-weight:700; font-size:15px}
+  .meeting .m{color:var(--muted); font-size:12.5px; margin-top:2px}
+  .hidden{display:none !important}
+  .spot{background:#171210; border:1px solid var(--line); border-radius:10px; padding:10px 12px; font-size:14px; line-height:1.55}
+  .spot li{margin:4px 0}
+  .foot{color:var(--muted); font-size:12px; text-align:center; margin-top:18px; line-height:1.6}
+</style>
+</head>
+<body>
+<header>
+  <div class="dot"></div>
+  <h1>Meeting Notes</h1>
+</header>
+<p class="sub">Record a conversation, get the transcript. English or Spanish, switch any time, even mid recording.</p>
+
+<!-- Recorder view -->
+<div id="recorderView">
+  <div class="card">
+    <div class="row">
+      <div class="seg" role="group" aria-label="Mode">
+        <button id="modeRecord" class="on" type="button">Record</button>
+        <button id="modeType" type="button">Type it</button>
+      </div>
+      <div class="spacer"></div>
+      <div class="seg small" role="group" aria-label="Conversation language">
+        <button id="langEn" class="on" type="button">English</button>
+        <button id="langEs" type="button">Spanish</button>
+      </div>
+    </div>
+
+    <div id="recordPane">
+      <button id="recBtn" type="button">REC</button>
+      <div class="row" style="justify-content:center; gap:14px">
+        <span id="statusLine">Ready when you are.</span>
+        <span id="timer">0:00</span>
+      </div>
+      <div class="btnrow">
+        <button id="pauseBtn" class="btn" type="button" disabled>Pause</button>
+        <button id="discardBtn" class="btn" type="button" disabled>Discard</button>
+      </div>
+      <div class="err" id="recError"></div>
+      <div id="transcriptBox" style="margin-top:10px"><span class="empty">What is said will appear here, live.</span></div>
+    </div>
+
+    <div id="typePane" class="hidden">
+      <textarea id="typeBox" placeholder="Type or paste what was said..."></textarea>
+    </div>
+
+    <div style="margin-top:14px">
+      <label for="titleInput">Title</label>
+      <input type="text" id="titleInput" placeholder="Auto: date and time">
+      <label for="peopleInput" style="display:block; margin-top:10px">People</label>
+      <input type="text" id="peopleInput" placeholder="Who was there">
+    </div>
+    <div class="btnrow" style="justify-content:flex-start; margin-top:14px">
+      <button id="saveBtn" class="btn primary" type="button">Stop and save</button>
+    </div>
+    <div class="err" id="saveError"></div>
+  </div>
+
+  <h2>Your meetings</h2>
+  <input type="text" id="searchBox" placeholder="Search meetings..." style="margin:0 0 10px">
+  <div id="meetingList"></div>
+  <p class="sub" id="emptyList">No meetings saved yet. Your list fills only with meetings you save.</p>
+</div>
+
+<!-- Detail view -->
+<div id="detailView" class="hidden">
+  <div class="btnrow" style="justify-content:flex-start; margin:0 0 10px">
+    <button id="backBtn" class="btn" type="button">&larr; All meetings</button>
+  </div>
+  <div class="card">
+    <h2 id="dTitle" style="margin-top:0"></h2>
+    <p class="sub" id="dMeta" style="margin:0 0 10px"></p>
+    <label>Decisions and action lines spotted</label>
+    <div class="spot" id="dSpots" style="margin-top:6px"></div>
+    <label style="display:block; margin-top:14px">Full transcript</label>
+    <div class="spot" id="dTranscript" style="margin-top:6px; white-space:pre-wrap"></div>
+    <div class="btnrow" style="justify-content:flex-start; margin-top:14px">
+      <button id="copyBtn" class="btn primary" type="button">Copy for Muse</button>
+      <button id="deleteBtn" class="btn" type="button">Delete meeting</button>
+    </div>
+  </div>
+</div>
+
+<p class="foot">Meetings are saved on this phone only.<br>For a full summary, copy a meeting for Muse and paste it into your chat.</p>
+<script>
+(function(){
+  "use strict";
+  var $ = function(id){ return document.getElementById(id); };
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition || null;
+
+  var lang = "en";
+  var mode = SR ? "record" : "type";
+  var status = "idle"; // idle | recording | paused
+  var finalText = "";
+  var interimText = "";
+  var seconds = 0;
+  var timerId = null;
+  var rec = null;
+  var wantListening = false;
+  var openId = null;
+
+  var KEY = "mn_meetings_v1";
+  function loadMeetings(){
+    try { return JSON.parse(localStorage.getItem(KEY) || "[]"); } catch(e){ return []; }
+  }
+  function storeMeetings(list){
+    try { localStorage.setItem(KEY, JSON.stringify(list)); } catch(e){}
+  }
+
+  function fmtTime(s){
+    var m = Math.floor(s/60), r = s%60;
+    return m + ":" + (r < 10 ? "0" : "") + r;
+  }
+  function langName(){ return lang === "es" ? "Spanish" : "English"; }
+
+  function setStatusLine(){
+    var el = $("statusLine");
+    if (status === "recording"){
+      el.textContent = "Recording, listening in " + langName() + ".";
+      el.className = "rec";
+    } else if (status === "paused"){
+      el.textContent = "Paused.";
+      el.className = "";
+    } else {
+      el.textContent = "Ready when you are.";
+      el.className = "";
+    }
+    $("timer").textContent = fmtTime(seconds);
+    var rb = $("recBtn");
+    rb.textContent = status === "recording" ? "STOP" : "REC";
+    rb.className = status === "recording" ? "recording" : "";
+    rb.id = "recBtn";
+    $("pauseBtn").disabled = status !== "recording";
+    $("pauseBtn").textContent = status === "paused" ? "Resume" : "Pause";
+    if (status === "paused") $("pauseBtn").disabled = false;
+    $("discardBtn").disabled = !(finalText || seconds > 0);
+  }
+
+  function renderTranscript(){
+    var box = $("transcriptBox");
+    if (!finalText && !interimText){
+      box.innerHTML = '<span class="empty">What is said will appear here, live.</span>';
+      return;
+    }
+    box.textContent = "";
+    if (finalText){
+      var s = document.createElement("span");
+      s.textContent = finalText;
+      box.appendChild(s);
+    }
+    if (interimText){
+      var i = document.createElement("span");
+      i.className = "interim";
+      i.textContent = (finalText ? " " : "") + interimText;
+      box.appendChild(i);
+    }
+  }
+
+  function startTimer(){
+    stopTimer();
+    timerId = window.setInterval(function(){ seconds++; $("timer").textContent = fmtTime(seconds); }, 1000);
+  }
+  function stopTimer(){
+    if (timerId){ window.clearInterval(timerId); timerId = null; }
+  }
+
+  function startRecognition(){
+    if (!SR) return;
+    if (rec){ try { rec.onend = null; rec.stop(); } catch(e){} rec = null; }
+    var r = new SR();
+    r.continuous = true;
+    r.interimResults = true;
+    r.lang = lang === "es" ? "es-MX" : "en-US";
+    r.onresult = function(e){
+      var interim = "";
+      for (var i = e.resultIndex; i < e.results.length; i++){
+        var result = e.results[i];
+        var alt = result && result[0];
+        if (!result || !alt) continue;
+        if (result.isFinal){
+          var t = (alt.transcript || "").trim();
+          if (t) finalText = (finalText ? finalText + " " : "") + t;
+        } else {
+          interim += alt.transcript || "";
+        }
+      }
+      interimText = interim;
+      renderTranscript();
+      setStatusLine();
+    };
+    r.onend = function(){
+      // Browser stops recognition on its own; restart only while the user
+      // still wants to record, and only for the still active instance.
+      if (wantListening && rec === r){
+        try { r.start(); } catch(e){}
+      }
+    };
+    r.onerror = function(e){
+      if (e.error === "not-allowed" || e.error === "service-not-allowed"){
+        wantListening = false;
+        status = "idle";
+        stopTimer();
+        $("recError").textContent = "Microphone access was blocked. Allow the microphone for this page, or use the Type it tab instead.";
+        setStatusLine();
+      }
+    };
+    rec = r;
+    try { r.start(); } catch(e){}
+  }
+
+  function beginRecording(){
+    $("recError").textContent = "";
+    wantListening = true;
+    status = "recording";
+    startTimer();
+    startRecognition();
+    setStatusLine();
+  }
+  function pauseRecording(){
+    wantListening = false;
+    if (rec){ try { rec.stop(); } catch(e){} }
+    interimText = "";
+    status = "paused";
+    stopTimer();
+    renderTranscript();
+    setStatusLine();
+  }
+  function finishRecording(){
+    wantListening = false;
+    if (rec){ try { rec.stop(); } catch(e){} }
+    interimText = "";
+    status = "idle";
+    stopTimer();
+    renderTranscript();
+    setStatusLine();
+  }
+  function discardAll(){
+    finishRecording();
+    finalText = ""; seconds = 0;
+    $("titleInput").value = ""; $("peopleInput").value = ""; $("typeBox").value = "";
+    $("saveError").textContent = "";
+    renderTranscript(); setStatusLine();
+  }
+
+  function switchLanguage(l){
+    if (l === lang) { setStatusLine(); return; }
+    lang = l;
+    $("langEn").className = lang === "en" ? "on" : "";
+    $("langEs").className = lang === "es" ? "on" : "";
+    if (wantListening){
+      // The Web Speech API only reads lang when recognition starts, so
+      // restart listening in the new language. The transcript so far is
+      // kept; only the half finished word in progress is dropped.
+      interimText = "";
+      startRecognition();
+    }
+    setStatusLine();
+  }
+
+  function setMode(m){
+    mode = m;
+    $("modeRecord").className = mode === "record" ? "on" : "";
+    $("modeType").className = mode === "type" ? "on" : "";
+    $("recordPane").className = mode === "record" ? "" : "hidden";
+    $("typePane").className = mode === "type" ? "" : "hidden";
+  }
+
+  function currentTranscript(){
+    return mode === "type" ? $("typeBox").value.trim() : finalText.trim();
+  }
+
+  var ACTION_RE = /(will|we'll|need to|needs to|going to|decided|agreed|deadline|action item|follow up|by monday|by tuesday|by wednesday|by thursday|by friday|hay que|vamos a|se decidi|se acord|necesita|tiene que|para el lunes|para el martes|para el mi|para el jueves|para el viernes)/i;
+  function spotLines(text){
+    var parts = text.replace(/\s+/g, " ").split(/(?<=[.!?])\s+/);
+    var out = [];
+    for (var i = 0; i < parts.length; i++){
+      var s = parts[i].trim();
+      if (s && ACTION_RE.test(s)) out.push(s);
+      if (out.length >= 8) break;
+    }
+    return out;
+  }
+
+  function saveMeeting(){
+    var text = currentTranscript();
+    if (!text){
+      $("saveError").textContent = mode === "record"
+        ? "Nothing transcribed yet. Record the conversation first, or switch to Type it."
+        : "Write or paste the conversation first.";
+      return;
+    }
+    $("saveError").textContent = "";
+    var now = new Date();
+    var title = $("titleInput").value.trim() || ("Meeting " + now.toLocaleDateString() + ", " + now.toLocaleTimeString([], {hour:"numeric", minute:"2-digit"}));
+    var meeting = {
+      id: now.getTime(),
+      title: title,
+      people: $("peopleInput").value.trim(),
+      transcript: text,
+      language: lang,
+      durationSeconds: seconds,
+      createdAt: now.getTime()
+    };
+    var list = loadMeetings();
+    list.unshift(meeting);
+    storeMeetings(list);
+    discardAll();
+    renderList();
+    openMeeting(meeting.id);
+  }
+
+  function renderList(){
+    var q = ($("searchBox").value || "").toLowerCase();
+    var list = loadMeetings().filter(function(m){
+      if (!q) return true;
+      return (m.title + " " + m.people + " " + m.transcript).toLowerCase().indexOf(q) !== -1;
+    });
+    var wrap = $("meetingList");
+    wrap.innerHTML = "";
+    $("emptyList").style.display = loadMeetings().length ? "none" : "";
+    list.forEach(function(m){
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "meeting";
+      var d = new Date(m.createdAt);
+      var meta = d.toLocaleDateString() + ", " + d.toLocaleTimeString([], {hour:"numeric", minute:"2-digit"})
+        + (m.people ? " · " + m.people : "")
+        + (m.durationSeconds ? " · " + fmtTime(m.durationSeconds) : "");
+      var t = document.createElement("div"); t.className = "t"; t.textContent = m.title;
+      var mm = document.createElement("div"); mm.className = "m"; mm.textContent = meta;
+      b.appendChild(t); b.appendChild(mm);
+      b.addEventListener("click", function(){ openMeeting(m.id); });
+      wrap.appendChild(b);
+    });
+  }
+
+  function openMeeting(id){
+    var m = null;
+    loadMeetings().forEach(function(x){ if (x.id === id) m = x; });
+    if (!m) return;
+    openId = id;
+    $("dTitle").textContent = m.title;
+    var d = new Date(m.createdAt);
+    $("dMeta").textContent = d.toLocaleDateString() + ", " + d.toLocaleTimeString([], {hour:"numeric", minute:"2-digit"})
+      + (m.people ? " · " + m.people : "")
+      + " · " + (m.language === "es" ? "Spanish" : "English")
+      + (m.durationSeconds ? " · " + fmtTime(m.durationSeconds) : "");
+    var spots = spotLines(m.transcript);
+    var spotBox = $("dSpots");
+    if (spots.length){
+      var ul = document.createElement("ul");
+      ul.style.margin = "0"; ul.style.paddingLeft = "18px";
+      spots.forEach(function(s){
+        var li = document.createElement("li"); li.textContent = s; ul.appendChild(li);
+      });
+      spotBox.innerHTML = ""; spotBox.appendChild(ul);
+    } else {
+      spotBox.textContent = "No decision or action lines spotted. Copy the meeting for Muse for a full summary.";
+    }
+    $("dTranscript").textContent = m.transcript;
+    $("recorderView").className = "hidden";
+    $("detailView").className = "";
+    window.scrollTo(0, 0);
+  }
+
+  function closeMeeting(){
+    openId = null;
+    $("detailView").className = "hidden";
+    $("recorderView").className = "";
+    renderList();
+  }
+
+  // Wire up controls.
+  $("recBtn").addEventListener("click", function(){
+    if (status === "recording") finishRecording();
+    else beginRecording();
+  });
+  $("pauseBtn").addEventListener("click", function(){
+    if (status === "recording") pauseRecording();
+    else if (status === "paused") beginRecording();
+  });
+  $("discardBtn").addEventListener("click", discardAll);
+  $("langEn").addEventListener("click", function(){ switchLanguage("en"); });
+  $("langEs").addEventListener("click", function(){ switchLanguage("es"); });
+  $("modeRecord").addEventListener("click", function(){ setMode("record"); });
+  $("modeType").addEventListener("click", function(){ setMode("type"); });
+  $("saveBtn").addEventListener("click", saveMeeting);
+  $("searchBox").addEventListener("input", renderList);
+  $("backBtn").addEventListener("click", closeMeeting);
+  $("deleteBtn").addEventListener("click", function(){
+    if (openId == null) return;
+    storeMeetings(loadMeetings().filter(function(m){ return m.id !== openId; }));
+    closeMeeting();
+  });
+  $("copyBtn").addEventListener("click", function(){
+    var m = null;
+    loadMeetings().forEach(function(x){ if (x.id === openId) m = x; });
+    if (!m) return;
+    var text = "Please summarize this meeting: key points, decisions, and action items with owners.\n\nTitle: " + m.title
+      + (m.people ? "\nPeople: " + m.people : "") + "\n\n" + m.transcript;
+    function done(){ $("copyBtn").textContent = "Copied. Paste it to Muse."; setTimeout(function(){ $("copyBtn").textContent = "Copy for Muse"; }, 2500); }
+    if (navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(done, function(){ window.prompt("Copy this text:", text); });
+    } else {
+      window.prompt("Copy this text:", text);
+    }
+  });
+
+  if (!SR){
+    setMode("type");
+    $("modeRecord").disabled = true;
+    $("recError").textContent = "Live voice transcription is not available in this browser. The Type it tab works.";
+  } else {
+    setMode("record");
+  }
+  setStatusLine();
+  renderTranscript();
+  renderList();
+
+  if ("serviceWorker" in navigator){
+    navigator.serviceWorker.register("sw.js").catch(function(){});
+  }
+})();
+</script>
+</body>
+</html>
